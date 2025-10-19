@@ -1,0 +1,73 @@
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+} from "typeorm";
+import {
+  OrganizationRole,
+  OrganizationPermission,
+  InvitationStatus,
+} from "../types";
+
+@Entity("organization_invitations")
+export class OrganizationInvitation {
+  @PrimaryGeneratedColumn("uuid")
+  id: string;
+
+  @Column({ name: "tenant_id" })
+  tenantId: string;
+
+  @Column()
+  email: string;
+
+  @Column({ unique: true })
+  token: string;
+
+  @Column({
+    name: "proposed_role",
+    type: "enum",
+    enum: OrganizationRole,
+    default: OrganizationRole.MEMBER,
+  })
+  proposedRole: OrganizationRole;
+
+  @Column({
+    name: "proposed_permissions",
+    type: "enum",
+    enum: OrganizationPermission,
+    array: true,
+    default: [],
+  })
+  proposedPermissions: OrganizationPermission[];
+
+  @Column({ nullable: true })
+  message: string;
+
+  @Column({ name: "invited_by_user_id" })
+  invitedByUserId: string;
+
+  @Column({ name: "expires_at" })
+  expiresAt: Date;
+
+  @Column({ name: "accepted_at", nullable: true })
+  acceptedAt: Date;
+
+  @Column({ name: "accepted_by_user_id", nullable: true })
+  acceptedByUserId: string;
+
+  @Column({
+    type: "enum",
+    enum: InvitationStatus,
+    default: InvitationStatus.PENDING,
+  })
+  status: InvitationStatus;
+
+  // Use string references to avoid circular dependencies
+  @ManyToOne("Tenant", "invitations", { onDelete: "CASCADE" })
+  tenant: any;
+
+  @CreateDateColumn()
+  createdAt: Date;
+}
