@@ -70,21 +70,25 @@ npm run start:prod
 ## API Endpoints
 
 ### Authentication
+
 - `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login
 - `POST /api/auth/logout` - User logout
 - `GET /api/auth/user-tenants` - Get user's tenants
 
 ### Tenant Management
+
 - `POST /api/tenants/create` - Create new tenant
 - `GET /api/tenants/:tenantId/info` - Get tenant information
 
 ### Slack Integration
+
 - `GET /api/:tenantId/slack/status` - Check Slack connection status
 - `GET /api/:tenantId/slack/install` - Initiate Slack OAuth
 - `POST /api/:tenantId/slack/events` - Handle Slack webhooks
 
 ### Conversations
+
 - `GET /api/:tenantId/conversations` - Get conversation history
 - `GET /api/:tenantId/conversations/stream` - Real-time updates (SSE)
 - `POST /api/:tenantId/conversations/thread-reply` - Create thread replies
@@ -116,21 +120,28 @@ src/
 ### Key Features
 
 #### Multi-Tenant Design
+
 - Every database operation is tenant-scoped using `tenantId`
 - Complete data isolation between tenants
 - Role-based access control per tenant
 
 #### Security
+
 - JWT authentication with HTTP-only cookies
 - Permission-based authorization
 - Input validation with DTOs
 - SQL injection prevention via TypeORM
 
 #### Entity Relationships
+
 - **Users ↔ Tenants**: Many-to-many via OrganizationMember
-- **Tenants ↔ Conversations**: One-to-many
-- **SlackUsers ↔ Conversations**: One-to-many
-- All relationships use string-based references to avoid circular dependencies
+- **Tenants ↔ Conversations**: One-to-many with cascade delete
+- **Tenants ↔ SlackUsers**: One-to-many with cascade delete
+- **Tenants ↔ OrganizationInvitations**: One-to-many with cascade delete
+- **Users ↔ Sessions**: One-to-many with cascade delete
+- **Users ↔ OrganizationMembers**: One-to-many with cascade delete
+- **SlackUsers ↔ Conversations**: One-to-many (optional relationship)
+- All relationships use proper TypeORM decorators with type safety
 
 ## Environment Variables
 
@@ -170,13 +181,36 @@ SLACK_SIGNING_SECRET=your-slack-signing-secret
 - **OrganizationInvitation**: Invitation system
 - **Session**: User session tracking
 
-### Circular Dependency Resolution
+### Entity Relationships
 
-The entity structure is designed to avoid circular dependencies by:
+The entity structure uses proper TypeORM relationships with circular dependency resolution:
 
 1. **Shared Types**: All enums and interfaces are in `src/database/types/`
-2. **String References**: Relationships use string-based entity references
-3. **No Direct Imports**: Entities don't import each other directly
+2. **Type-Safe Relationships**: All relationships use proper TypeORM decorators with `() => EntityClass` syntax
+3. **Bidirectional Relations**: OneToMany/ManyToOne relationships are properly defined on both sides
+4. **JoinColumn Decorators**: Explicit foreign key column mapping for clarity
+5. **Cascade Operations**: Proper cascade delete behavior for data integrity
+
+#### Relationship Examples
+
+```typescript
+// Tenant -> Conversations (OneToMany)
+@OneToMany(() => Conversation, (conversation) => conversation.tenant)
+conversations: Conversation[];
+
+// Conversation -> Tenant (ManyToOne)
+@ManyToOne(() => Tenant, (tenant) => tenant.conversations, { onDelete: "CASCADE" })
+@JoinColumn({ name: "tenant_id" })
+tenant: Tenant;
+```
+
+#### Benefits of Type-Safe Relationships
+
+- **Type Safety**: No more `any` types - full TypeScript intellisense and compile-time checking
+- **Better IDE Support**: Auto-completion and refactoring support for relationship properties
+- **Runtime Safety**: TypeORM validates relationship integrity at runtime
+- **Maintainability**: Clear relationship definitions make the codebase easier to understand
+- **Query Optimization**: TypeORM can optimize queries based on relationship metadata
 
 ## Development Guidelines
 
@@ -195,13 +229,36 @@ The entity structure is designed to avoid circular dependencies by:
 - **Prettier**: Consistent formatting
 - **Testing**: Unit tests with Jest
 
+### Working with Entity Relationships
+
+When working with the new type-safe relationships:
+
+```typescript
+// Loading relationships
+const tenant = await this.tenantRepository.findOne({
+  where: { id: tenantId },
+  relations: ["conversations", "slackUsers", "invitations"],
+});
+
+// Accessing related data
+const conversations = tenant.conversations; // Type: Conversation[]
+const slackUsers = tenant.slackUsers; // Type: SlackUser[]
+
+// Creating with relationships
+const conversation = this.conversationRepository.create({
+  content: "Hello",
+  tenantId: tenant.id,
+  tenant: tenant, // Type-safe relationship
+});
+```
+
 ### Database Operations
 
 ```typescript
 // Always use tenant-scoped queries
 const results = await this.repository.find({
   where: { tenantId },
-  order: { createdAt: 'DESC' }
+  order: { createdAt: "DESC" },
 });
 ```
 
@@ -221,7 +278,7 @@ async create(@Body() dto: CreateDto) {
 ### Common Issues
 
 1. **Database Connection Errors**
-   - Check DATABASE_* environment variables
+   - Check DATABASE\_\* environment variables
    - Ensure PostgreSQL is running
    - Verify SSL settings
 
@@ -230,8 +287,9 @@ async create(@Body() dto: CreateDto) {
    - Check `data-source.js` configuration
 
 3. **Compilation Errors**
-   - Ensure all circular dependencies are resolved
-   - Check imports in `src/database/entities/`
+   - Ensure all entity relationships use proper `() => EntityClass` syntax
+   - Check that all relationship imports are correct
+   - Verify JoinColumn decorators match database column names
 
 4. **Authentication Issues**
    - Verify JWT_SECRET is set
