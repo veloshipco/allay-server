@@ -1,11 +1,16 @@
-import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Tenant } from '../database/entities/tenant.entity';
-import { User } from '../database/entities/user.entity';
-import { OrganizationMember } from '../database/entities/organization-member.entity';
-import { OrganizationRole } from '../database/types';
-import { CreateTenantDto } from './dto/create-tenant.dto';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  ForbiddenException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Tenant } from "../database/entities/tenant.entity";
+import { User } from "../database/entities/user.entity";
+import { OrganizationMember } from "../database/entities/organization-member.entity";
+import { OrganizationRole } from "../database/types";
+import { CreateTenantDto } from "./dto/create-tenant.dto";
 
 @Injectable()
 export class TenantsService {
@@ -15,7 +20,7 @@ export class TenantsService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(OrganizationMember)
-    private organizationMemberRepository: Repository<OrganizationMember>,
+    private organizationMemberRepository: Repository<OrganizationMember>
   ) {}
 
   async createTenant(userId: string, createTenantDto: CreateTenantDto) {
@@ -25,7 +30,7 @@ export class TenantsService {
     });
 
     if (existingTenant) {
-      throw new ConflictException('Tenant with this slug already exists');
+      throw new ConflictException("Tenant with this slug already exists");
     }
 
     // Create tenant
@@ -35,7 +40,7 @@ export class TenantsService {
     // Get user
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     // Create organization membership with owner role
@@ -64,13 +69,15 @@ export class TenantsService {
     });
 
     if (!membership) {
-      throw new ForbiddenException('Access denied to this tenant');
+      throw new ForbiddenException("Access denied to this tenant");
     }
 
-    const tenant = await this.tenantRepository.findOne({ where: { id: tenantId } });
+    const tenant = await this.tenantRepository.findOne({
+      where: { id: tenantId },
+    });
 
     if (!tenant) {
-      throw new NotFoundException('Tenant not found');
+      throw new NotFoundException("Tenant not found");
     }
 
     return {
@@ -87,10 +94,10 @@ export class TenantsService {
   async getUserTenants(userId: string) {
     const memberships = await this.organizationMemberRepository.find({
       where: { userId },
-      relations: ['tenant'],
+      relations: ["tenant"],
     });
 
-    return memberships.map(membership => ({
+    return memberships.map((membership) => ({
       id: membership.tenant.id,
       name: membership.tenant.name,
       slug: membership.tenant.slug,

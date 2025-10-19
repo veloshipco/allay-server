@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MinLength, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, Matches } from "class-validator";
 
 export class CreateTenantDto {
   @IsString()
@@ -9,7 +9,7 @@ export class CreateTenantDto {
   @IsString()
   @IsNotEmpty()
   @Matches(/^[a-zA-Z0-9_-]+$/, {
-    message: 'Slug can only contain letters, numbers, hyphens, and underscores',
+    message: "Slug can only contain letters, numbers, hyphens, and underscores",
   })
   slug: string;
 }

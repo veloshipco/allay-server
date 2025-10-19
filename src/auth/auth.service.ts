@@ -1,13 +1,17 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcryptjs';
-import { User } from '../database/entities/user.entity';
-import { Session } from '../database/entities/session.entity';
-import { OrganizationMember } from '../database/entities/organization-member.entity';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { JwtService } from "@nestjs/jwt";
+import * as bcrypt from "bcryptjs";
+import { User } from "../database/entities/user.entity";
+import { Session } from "../database/entities/session.entity";
+import { OrganizationMember } from "../database/entities/organization-member.entity";
+import { RegisterDto } from "./dto/register.dto";
+import { LoginDto } from "./dto/login.dto";
 
 @Injectable()
 export class AuthService {
@@ -18,16 +22,20 @@ export class AuthService {
     private sessionRepository: Repository<Session>,
     @InjectRepository(OrganizationMember)
     private organizationMemberRepository: Repository<OrganizationMember>,
-    private jwtService: JwtService,
+    private jwtService: JwtService
   ) {}
 
-  async register(registerDto: RegisterDto, ipAddress?: string, userAgent?: string) {
+  async register(
+    registerDto: RegisterDto,
+    ipAddress?: string,
+    userAgent?: string
+  ) {
     const existingUser = await this.userRepository.findOne({
       where: { email: registerDto.email },
     });
 
     if (existingUser) {
-      throw new ConflictException('User with this email already exists');
+      throw new ConflictException("User with this email already exists");
     }
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 12);
@@ -42,7 +50,12 @@ export class AuthService {
     await this.userRepository.save(user);
 
     const token = await this.generateToken(user);
-    const session = await this.createSession(user.id, token, ipAddress, userAgent);
+    const session = await this.createSession(
+      user.id,
+      token,
+      ipAddress,
+      userAgent
+    );
 
     return {
       user: {
@@ -61,17 +74,25 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      loginDto.password,
+      user.password
+    );
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     const token = await this.generateToken(user);
-    const session = await this.createSession(user.id, token, ipAddress, userAgent);
+    const session = await this.createSession(
+      user.id,
+      token,
+      ipAddress,
+      userAgent
+    );
 
     return {
       user: {
@@ -87,18 +108,18 @@ export class AuthService {
   async logout(token: string) {
     await this.sessionRepository.update(
       { token, isActive: true },
-      { isActive: false },
+      { isActive: false }
     );
   }
 
   async validateUser(token: string) {
     const session = await this.sessionRepository.findOne({
       where: { token, isActive: true },
-      relations: ['user'],
+      relations: ["user"],
     });
 
     if (!session || session.expiresAt < new Date()) {
-      throw new UnauthorizedException('Invalid or expired session');
+      throw new UnauthorizedException("Invalid or expired session");
     }
 
     return session.user;
@@ -108,10 +129,10 @@ export class AuthService {
     // Get tenant memberships directly from OrganizationMember table
     const memberships = await this.organizationMemberRepository.find({
       where: { userId },
-      relations: ['tenant'],
+      relations: ["tenant"],
     });
 
-    return memberships.map(membership => ({
+    return memberships.map((membership) => ({
       id: membership.tenant.id,
       name: membership.tenant.name,
       slug: membership.tenant.slug,
@@ -126,14 +147,14 @@ export class AuthService {
       email: user.email,
     };
 
-    return this.jwtService.signAsync(payload, { expiresIn: '7d' });
+    return this.jwtService.signAsync(payload, { expiresIn: "7d" });
   }
 
   private async createSession(
     userId: string,
     token: string,
     ipAddress?: string,
-    userAgent?: string,
+    userAgent?: string
   ): Promise<Session> {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);

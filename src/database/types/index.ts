@@ -1,23 +1,23 @@
 // Enums and types that can be shared across entities without circular dependencies
 
 export enum OrganizationRole {
-  MEMBER = 'MEMBER',
-  ADMIN = 'ADMIN',
-  OWNER = 'OWNER',
+  MEMBER = "MEMBER",
+  ADMIN = "ADMIN",
+  OWNER = "OWNER",
 }
 
 export enum OrganizationPermission {
-  MANAGE_MEMBERS = 'MANAGE_MEMBERS',
-  INVITE_MEMBERS = 'INVITE_MEMBERS',
-  VIEW_ANALYTICS = 'VIEW_ANALYTICS',
-  MANAGE_SLACK = 'MANAGE_SLACK',
+  MANAGE_MEMBERS = "MANAGE_MEMBERS",
+  INVITE_MEMBERS = "INVITE_MEMBERS",
+  VIEW_ANALYTICS = "VIEW_ANALYTICS",
+  MANAGE_SLACK = "MANAGE_SLACK",
 }
 
 export enum InvitationStatus {
-  PENDING = 'PENDING',
-  ACCEPTED = 'ACCEPTED',
-  EXPIRED = 'EXPIRED',
-  REVOKED = 'REVOKED',
+  PENDING = "PENDING",
+  ACCEPTED = "ACCEPTED",
+  EXPIRED = "EXPIRED",
+  REVOKED = "REVOKED",
 }
 
 export interface SlackConfig {

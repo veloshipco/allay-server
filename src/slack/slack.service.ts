@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Tenant } from '../database/entities/tenant.entity';
-import { Conversation } from '../database/entities/conversation.entity';
-import { SlackUser } from '../database/entities/slack-user.entity';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Tenant } from "../database/entities/tenant.entity";
+import { Conversation } from "../database/entities/conversation.entity";
+import { SlackUser } from "../database/entities/slack-user.entity";
 
 @Injectable()
 export class SlackService {
@@ -13,11 +13,13 @@ export class SlackService {
     @InjectRepository(Conversation)
     private conversationRepository: Repository<Conversation>,
     @InjectRepository(SlackUser)
-    private slackUserRepository: Repository<SlackUser>,
+    private slackUserRepository: Repository<SlackUser>
   ) {}
 
   async getSlackStatus(tenantId: string) {
-    const tenant = await this.tenantRepository.findOne({ where: { id: tenantId } });
+    const tenant = await this.tenantRepository.findOne({
+      where: { id: tenantId },
+    });
 
     if (!tenant || !tenant.slackConfig) {
       return {
@@ -38,13 +40,17 @@ export class SlackService {
   async getConversations(tenantId: string, limit = 50) {
     return this.conversationRepository.find({
       where: { tenantId },
-      relations: ['user'],
-      order: { slackTimestamp: 'DESC' },
+      relations: ["user"],
+      order: { slackTimestamp: "DESC" },
       take: limit,
     });
   }
 
-  async getSlackUsers(tenantId: string, includeInactive = false, search?: string) {
+  async getSlackUsers(
+    tenantId: string,
+    includeInactive = false,
+    search?: string
+  ) {
     const whereCondition: any = { tenantId };
 
     if (!includeInactive) {
@@ -57,12 +63,17 @@ export class SlackService {
 
     return this.slackUserRepository.find({
       where: whereCondition,
-      order: { displayName: 'ASC' },
+      order: { displayName: "ASC" },
     });
   }
 
   // Placeholder for Slack API integration methods
-  async postMessage(tenantId: string, channelId: string, message: string, threadTs?: string) {
+  async postMessage(
+    tenantId: string,
+    channelId: string,
+    message: string,
+    threadTs?: string
+  ) {
     // This would integrate with Slack API
     // For now, just return a mock response
     return {
@@ -72,7 +83,11 @@ export class SlackService {
     };
   }
 
-  async verifySlackSignature(body: string, signature: string, timestamp: string): Promise<boolean> {
+  async verifySlackSignature(
+    body: string,
+    signature: string,
+    timestamp: string
+  ): Promise<boolean> {
     // This would implement proper Slack signature verification
     // For now, just return true
     return true;
