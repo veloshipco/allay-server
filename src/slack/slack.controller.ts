@@ -24,7 +24,7 @@ import { TenantGuard } from "../common/guards/tenant.guard";
 import { PermissionsGuard } from "../common/guards/permissions.guard";
 import { UseGuards } from "@nestjs/common";
 
-@Controller(":tenantId/slack")
+@Controller("api/:tenantId/slack")
 @UseGuards(AuthGuard, TenantGuard, PermissionsGuard)
 export class SlackController {
   constructor(

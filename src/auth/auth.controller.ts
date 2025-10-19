@@ -12,11 +12,13 @@ import { Request, Response } from "express";
 import { AuthService } from "./auth.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
+import { Public } from "./decorators/public.decorator";
 
 @Controller("api/auth")
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  @Public()
   @Post("register")
   async register(
     @Body() registerDto: RegisterDto,
@@ -30,16 +32,21 @@ export class AuthController {
     );
 
     // Set HTTP-only cookie
-    res.cookie("auth_token", result.token, {
+    res.cookie("allay-session", result.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Allow cookies in development
       sameSite: "lax",
+      domain: process.env.NODE_ENV === "production" ? undefined : "localhost",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    res.status(HttpStatus.CREATED).json(result.user);
+    res.status(HttpStatus.CREATED).json({
+      ...result.user,
+      token: result.token, // Also return token in response for frontend to store
+    });
   }
 
+  @Public()
   @Post("login")
   @HttpCode(HttpStatus.OK)
   async login(
@@ -54,14 +61,18 @@ export class AuthController {
     );
 
     // Set HTTP-only cookie
-    res.cookie("auth_token", result.token, {
+    res.cookie("allay-session", result.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Allow cookies in development
       sameSite: "lax",
+      domain: process.env.NODE_ENV === "production" ? undefined : "localhost",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    res.json(result.user);
+    res.json({
+      ...result.user,
+      token: result.token, // Also return token in response for frontend to store
+    });
   }
 
   @Post("logout")
@@ -74,7 +85,7 @@ export class AuthController {
     }
 
     // Clear cookie
-    res.cookie("auth_token", "", {
+    res.cookie("allay-session", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -93,7 +104,7 @@ export class AuthController {
   private extractTokenFromCookie(request: Request): string | undefined {
     const authCookie = request.headers.cookie
       ?.split(";")
-      .find((cookie: string) => cookie.trim().startsWith("auth_token="));
+      .find((cookie: string) => cookie.trim().startsWith("allay-session="));
     if (!authCookie) return undefined;
 
     const [, value] = authCookie.split("=");

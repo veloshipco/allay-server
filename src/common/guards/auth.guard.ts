@@ -22,7 +22,10 @@ export class AuthGuard implements CanActivate {
       context.getClass(),
     ]);
 
+    console.log("🔐 DEBUG - Route is public:", isPublic);
+
     if (isPublic) {
+      console.log("🔐 DEBUG - Skipping auth for public route");
       return true;
     }
 
@@ -30,25 +33,53 @@ export class AuthGuard implements CanActivate {
     const token = this.extractTokenFromCookie(request);
 
     if (!token) {
+      console.log("🔐 DEBUG - No token found, throwing 401");
       throw new UnauthorizedException("No authentication token provided");
     }
 
     try {
       const payload = await this.jwtService.verifyAsync(token);
+      console.log("🔐 DEBUG - Token verified successfully:", payload);
       request["user"] = payload;
       return true;
-    } catch {
+    } catch (error) {
+      console.log("🔐 DEBUG - Token verification failed:", error);
       throw new UnauthorizedException("Invalid authentication token");
     }
   }
 
   private extractTokenFromCookie(request: Request): string | undefined {
+    console.log("🍪 DEBUG - All cookies:", request.headers.cookie);
+    console.log(
+      "🍪 DEBUG - Authorization header:",
+      request.headers.authorization
+    );
+
+    // Check Authorization header first
+    const authHeader = request.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.substring(7);
+      console.log(
+        "🍪 DEBUG - Found token in Authorization header:",
+        token ? "Token found" : "No token"
+      );
+      return token;
+    }
+
+    // Fallback to cookie
     const authCookie = request.headers.cookie
       ?.split(";")
-      .find((cookie: string) => cookie.trim().startsWith("auth_token="));
+      .find((cookie: string) => cookie.trim().startsWith("allay-session="));
+
+    console.log("🍪 DEBUG - Found allay-session cookie:", authCookie);
+
     if (!authCookie) return undefined;
 
     const [, value] = authCookie.split("=");
+    console.log(
+      "🍪 DEBUG - Extracted token:",
+      value ? "Token found" : "No token"
+    );
     return value;
   }
 }

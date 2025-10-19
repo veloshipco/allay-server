@@ -13,10 +13,20 @@ import { OrganizationMember } from "../database/entities/organization-member.ent
     TypeOrmModule.forFeature([User, Session, OrganizationMember]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>("JWT_SECRET", "your-secret-key"),
-        signOptions: { expiresIn: "7d" },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const secret = configService.get<string>(
+          "jwt.secret",
+          "your-secret-key"
+        );
+        console.log(
+          "🔑 JWT Secret configured:",
+          secret ? "Secret found" : "No secret"
+        );
+        return {
+          secret,
+          signOptions: { expiresIn: "7d" },
+        };
+      },
       inject: [ConfigService],
     }),
   ],
