@@ -3,12 +3,12 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
+  JoinColumn,
   CreateDateColumn,
 } from "typeorm";
-import {
-  OrganizationRole,
-  OrganizationPermission,
-} from "../types";
+import { OrganizationRole, OrganizationPermission } from "../types";
+import { User } from "./user.entity";
+import { Tenant } from "./tenant.entity";
 
 @Entity("organization_members")
 export class OrganizationMember {
@@ -39,10 +39,13 @@ export class OrganizationMember {
   @CreateDateColumn({ name: "joined_at" })
   joinedAt: Date;
 
-  // Use string references to avoid circular dependencies
-  @ManyToOne("User", "organizationMemberships", { onDelete: "CASCADE" })
-  user: any;
+  @ManyToOne(() => User, (user) => user.organizationMemberships, {
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "user_id" })
+  user: User;
 
-  @ManyToOne("Tenant", { onDelete: "CASCADE" })
-  tenant: any;
+  @ManyToOne(() => Tenant, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "tenant_id" })
+  tenant: Tenant;
 }

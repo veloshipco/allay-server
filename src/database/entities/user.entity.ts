@@ -6,6 +6,8 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from "typeorm";
+import { OrganizationMember } from "./organization-member.entity";
+import { Session } from "./session.entity";
 
 @Entity("users")
 export class User {
@@ -27,12 +29,11 @@ export class User {
   @Column({ default: true })
   isActive: boolean;
 
-  // Use string references to avoid circular dependencies
-  @OneToMany("OrganizationMember", "user")
-  organizationMemberships: any[];
+  @OneToMany(() => OrganizationMember, (member) => member.user)
+  organizationMemberships: OrganizationMember[];
 
-  @OneToMany("Session", "user")
-  sessions: any[];
+  @OneToMany(() => Session, (session) => session.user)
+  sessions: Session[];
 
   @CreateDateColumn()
   createdAt: Date;

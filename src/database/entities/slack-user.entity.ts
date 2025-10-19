@@ -3,9 +3,11 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
+  JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
 } from "typeorm";
+import { Tenant } from "./tenant.entity";
 
 @Entity("slack_users")
 export class SlackUser {
@@ -60,9 +62,11 @@ export class SlackUser {
   @Column({ name: "last_seen_at", nullable: true })
   lastSeenAt: Date;
 
-  // Use string references to avoid circular dependencies
-  @ManyToOne("Tenant", "slackUsers", { onDelete: "CASCADE" })
-  tenant: any;
+  @ManyToOne(() => Tenant, (tenant) => tenant.slackUsers, {
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "tenant_id" })
+  tenant: Tenant;
 
   @CreateDateColumn()
   createdAt: Date;

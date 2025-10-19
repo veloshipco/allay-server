@@ -3,6 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
+  JoinColumn,
   CreateDateColumn,
 } from "typeorm";
 import {
@@ -10,6 +11,7 @@ import {
   OrganizationPermission,
   InvitationStatus,
 } from "../types";
+import { Tenant } from "./tenant.entity";
 
 @Entity("organization_invitations")
 export class OrganizationInvitation {
@@ -64,9 +66,11 @@ export class OrganizationInvitation {
   })
   status: InvitationStatus;
 
-  // Use string references to avoid circular dependencies
-  @ManyToOne("Tenant", "invitations", { onDelete: "CASCADE" })
-  tenant: any;
+  @ManyToOne(() => Tenant, (tenant) => tenant.invitations, {
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "tenant_id" })
+  tenant: Tenant;
 
   @CreateDateColumn()
   createdAt: Date;

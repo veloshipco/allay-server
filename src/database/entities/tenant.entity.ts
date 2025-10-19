@@ -7,6 +7,9 @@ import {
   OneToMany,
 } from "typeorm";
 import { SlackConfig } from "../types";
+import { Conversation } from "./conversation.entity";
+import { SlackUser } from "./slack-user.entity";
+import { OrganizationInvitation } from "./organization-invitation.entity";
 
 @Entity("tenants")
 export class Tenant {
@@ -25,15 +28,14 @@ export class Tenant {
   @Column({ default: true })
   isActive: boolean;
 
-  // Use string references to avoid circular dependencies
-  @OneToMany("Conversation", "tenant")
-  conversations: any[];
+  @OneToMany(() => Conversation, (conversation) => conversation.tenant)
+  conversations: Conversation[];
 
-  @OneToMany("SlackUser", "tenant")
-  slackUsers: any[];
+  @OneToMany(() => SlackUser, (slackUser) => slackUser.tenant)
+  slackUsers: SlackUser[];
 
-  @OneToMany("OrganizationInvitation", "tenant")
-  invitations: any[];
+  @OneToMany(() => OrganizationInvitation, (invitation) => invitation.tenant)
+  invitations: OrganizationInvitation[];
 
   @CreateDateColumn()
   createdAt: Date;

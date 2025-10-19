@@ -3,10 +3,13 @@ import {
   PrimaryColumn,
   Column,
   ManyToOne,
+  JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
 } from "typeorm";
 import { Reaction, ThreadReply } from "../types";
+import { Tenant } from "./tenant.entity";
+import { SlackUser } from "./slack-user.entity";
 
 @Entity("conversations")
 export class Conversation {
@@ -43,12 +46,15 @@ export class Conversation {
   @Column({ name: "slack_timestamp" })
   slackTimestamp: Date;
 
-  // Use string references to avoid circular dependencies
-  @ManyToOne("Tenant", "conversations", { onDelete: "CASCADE" })
-  tenant: any;
+  @ManyToOne(() => Tenant, (tenant) => tenant.conversations, {
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "tenant_id" })
+  tenant: Tenant;
 
-  @ManyToOne("SlackUser", "conversations")
-  user: any;
+  @ManyToOne(() => SlackUser, { nullable: true })
+  @JoinColumn({ name: "user_id", referencedColumnName: "slackUserId" })
+  user: SlackUser;
 
   @CreateDateColumn()
   createdAt: Date;
