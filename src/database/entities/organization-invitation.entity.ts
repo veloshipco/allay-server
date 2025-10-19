@@ -12,6 +12,7 @@ import {
   InvitationStatus,
 } from "../types";
 import { Tenant } from "./tenant.entity";
+import { User } from "./user.entity";
 
 @Entity("organization_invitations")
 export class OrganizationInvitation {
@@ -47,17 +48,17 @@ export class OrganizationInvitation {
   @Column({ nullable: true })
   message: string;
 
-  @Column({ name: "invited_by_user_id" })
-  invitedByUserId: string;
+  @Column({ name: "invited_by" })
+  invitedBy: string;
 
   @Column({ name: "expires_at" })
   expiresAt: Date;
 
-  @Column({ name: "accepted_at", nullable: true })
-  acceptedAt: Date;
+  @Column({ name: "responded_at", nullable: true })
+  respondedAt: Date;
 
-  @Column({ name: "accepted_by_user_id", nullable: true })
-  acceptedByUserId: string;
+  @Column({ name: "accepted_by", nullable: true })
+  acceptedBy: string;
 
   @Column({
     type: "enum",
@@ -72,6 +73,27 @@ export class OrganizationInvitation {
   @JoinColumn({ name: "tenant_id" })
   tenant: Tenant;
 
+  @ManyToOne(() => User, (user) => user.invitations)
+  @JoinColumn({ name: "invited_by" })
+  invitedByUser: User;
+
   @CreateDateColumn()
   createdAt: Date;
+
+  // Helper methods
+  isExpired(): boolean {
+    return new Date() > this.expiresAt;
+  }
+
+  canAccept(): boolean {
+    return this.status === InvitationStatus.PENDING && !this.isExpired();
+  }
+
+  canDecline(): boolean {
+    return this.status === InvitationStatus.PENDING && !this.isExpired();
+  }
+
+  canCancel(): boolean {
+    return this.status === InvitationStatus.PENDING && !this.isExpired();
+  }
 }

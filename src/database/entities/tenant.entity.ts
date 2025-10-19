@@ -5,11 +5,14 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToMany,
 } from "typeorm";
 import { SlackConfig } from "../types";
 import { Conversation } from "./conversation.entity";
 import { SlackUser } from "./slack-user.entity";
 import { OrganizationInvitation } from "./organization-invitation.entity";
+import { OrganizationMember } from "./organization-member.entity";
+import { User } from "./user.entity";
 
 @Entity("tenants")
 export class Tenant {
@@ -36,6 +39,12 @@ export class Tenant {
 
   @OneToMany(() => OrganizationInvitation, (invitation) => invitation.tenant)
   invitations: OrganizationInvitation[];
+
+  @OneToMany(() => OrganizationMember, (member) => member.tenant)
+  organizationMembers: OrganizationMember[];
+
+  @ManyToMany(() => User, (user) => user.tenants)
+  members: User[];
 
   @CreateDateColumn()
   createdAt: Date;

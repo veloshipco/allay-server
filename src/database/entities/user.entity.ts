@@ -5,9 +5,13 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToMany,
+  JoinTable,
 } from "typeorm";
 import { OrganizationMember } from "./organization-member.entity";
 import { Session } from "./session.entity";
+import { OrganizationInvitation } from "./organization-invitation.entity";
+import { Tenant } from "./tenant.entity";
 
 @Entity("users")
 export class User {
@@ -34,6 +38,17 @@ export class User {
 
   @OneToMany(() => Session, (session) => session.user)
   sessions: Session[];
+
+  @OneToMany(() => OrganizationInvitation, (invitation) => invitation.invitedByUser)
+  invitations: OrganizationInvitation[];
+
+  @ManyToMany(() => Tenant, (tenant) => tenant.members)
+  @JoinTable({
+    name: "user_tenants",
+    joinColumn: { name: "user_id", referencedColumnName: "id" },
+    inverseJoinColumn: { name: "tenant_id", referencedColumnName: "id" },
+  })
+  tenants: Tenant[];
 
   @CreateDateColumn()
   createdAt: Date;

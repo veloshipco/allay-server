@@ -22,6 +22,6 @@ import { OrganizationMember } from "../database/entities/organization-member.ent
   ],
   controllers: [AuthController],
   providers: [AuthService],
-  exports: [AuthService],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

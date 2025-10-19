@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { PERMISSIONS_KEY } from "../decorators/permissions.decorator";
+import { PERMISSIONS_KEY } from "../../auth/decorators/permissions.decorator";
 import { OrganizationPermission, OrganizationRole } from "../../database/types";
 
 @Injectable()

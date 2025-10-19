@@ -5,6 +5,7 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
+  UpdateDateColumn,
 } from "typeorm";
 import { OrganizationRole, OrganizationPermission } from "../types";
 import { User } from "./user.entity";
@@ -38,6 +39,12 @@ export class OrganizationMember {
 
   @CreateDateColumn({ name: "joined_at" })
   joinedAt: Date;
+
+  @UpdateDateColumn({ name: "last_active_at" })
+  lastActiveAt: Date;
+
+  @Column({ default: true })
+  isActive: boolean;
 
   @ManyToOne(() => User, (user) => user.organizationMemberships, {
     onDelete: "CASCADE",

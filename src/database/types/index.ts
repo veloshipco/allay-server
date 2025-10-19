@@ -11,6 +11,8 @@ export enum OrganizationPermission {
   INVITE_MEMBERS = "INVITE_MEMBERS",
   VIEW_ANALYTICS = "VIEW_ANALYTICS",
   MANAGE_SLACK = "MANAGE_SLACK",
+  MANAGE_INTEGRATIONS = "MANAGE_INTEGRATIONS",
+  SEND_MESSAGES = "SEND_MESSAGES",
 }
 
 export enum InvitationStatus {
@@ -49,4 +51,12 @@ export interface ThreadReply {
   userId: string;
   channelId: string;
   postedAt: Date;
+}
+
+export interface SlackMessage {
+  type: string;
+  ts: string;
+  user: string;
+  text: string;
+  thread_ts?: string;
 }
