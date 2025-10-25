@@ -10,7 +10,16 @@ import { OrganizationMember } from "../database/entities/organization-member.ent
 import { AuthModule } from "../auth/auth.module";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Tenant, Conversation, SlackUser, OrganizationMember]), ConfigModule, AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([
+      Tenant,
+      Conversation,
+      SlackUser,
+      OrganizationMember,
+    ]),
+    ConfigModule,
+    AuthModule,
+  ],
   controllers: [SlackController],
   providers: [SlackService],
   exports: [SlackService],

@@ -1,11 +1,16 @@
-import { Injectable, Logger } from "@nestjs/common";
+import {
+  Injectable,
+  InternalServerErrorException,
+  BadRequestException,
+  Logger,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { ConfigService } from "@nestjs/config";
 import { Tenant } from "../database/entities/tenant.entity";
 import { Conversation } from "../database/entities/conversation.entity";
 import { SlackUser } from "../database/entities/slack-user.entity";
-import * as crypto from 'crypto';
+import * as crypto from "crypto";
 
 interface SlackApiClient {
   botToken: string;
@@ -37,6 +42,42 @@ interface SlackChannelInfo {
   num_members?: number;
 }
 
+const scopes = [
+  // Core reading permissions
+  "channels:read",
+  "groups:read",
+  "im:read",
+  "mpim:read",
+  "reactions:read",
+  "team:read",
+
+  // Message history permissions
+  "channels:history",
+  "groups:history",
+  "im:history",
+  "mpim:history",
+
+  // Writing permissions
+  "chat:write",
+  "reactions:write",
+
+  // Channel management
+  "channels:join",
+  "groups:write",
+
+  // User information
+  "users:read",
+  "users:read.email",
+
+  // Enhanced user interaction
+  "chat:write.public",
+  "chat:write.customize",
+];
+
+const userScopes = [
+  "chat:write", // User scope for posting as the user
+];
+
 @Injectable()
 export class SlackService {
   private readonly logger = new Logger(SlackService.name);
@@ -48,8 +89,15 @@ export class SlackService {
     private conversationRepository: Repository<Conversation>,
     @InjectRepository(SlackUser)
     private slackUserRepository: Repository<SlackUser>,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {}
+
+  private getRedirectUrl(tenantId: string) {
+    const baseUrl =
+      this.configService.get<string>("forwardedHost") ||
+      `http://localhost:${this.configService.get<number>("port")}`;
+    return `${baseUrl}/api/slack/callback`;
+  }
 
   async getSlackStatus(tenantId: string) {
     const tenant = await this.tenantRepository.findOne({
@@ -71,6 +119,77 @@ export class SlackService {
       botUserId: tenant.slackConfig.botUserId || null,
       teamId: tenant.slackConfig.teamId || null,
     };
+  }
+
+  async installSlack(tenantId: string) {
+    //will handle tactual tenants later after testing
+    try {
+      const url = `https://slack.com/oauth/v2/authorize?client_id=${this.configService.get<string>(
+        "slack.clientId"
+      )}&scope=${scopes.join(",")}&user_scope=${userScopes.join(",")}&redirect_uri=${encodeURIComponent(this.getRedirectUrl(tenantId))}&state=${encodeURIComponent(tenantId)}`;
+
+      console.log("url", url);
+      return url;
+    } catch (error) {
+      throw new InternalServerErrorException("Failed to initiate Slack OAuth");
+    }
+  }
+
+  async handleSlackCallback(code: string, tenantId: string, error: string) {
+    try {
+      if (error) {
+        throw new BadRequestException(error);
+      }
+      if (!code) {
+        throw new BadRequestException("Missing authorization code");
+      }
+      if (!tenantId) {
+        throw new BadRequestException("Missing state parameter");
+      }
+      const result = await fetch("https://slack.com/api/oauth.v2.access", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          client_id: this.configService.get<string>("slack.clientId"),
+          client_secret: this.configService.get<string>("slack.clientSecret"),
+          code: code,
+          redirect_uri: this.getRedirectUrl(tenantId),
+        }),
+      });
+
+      const data = await result.json();
+
+      if (!data.ok) {
+        throw new BadRequestException(data.error);
+      }
+
+      return data;
+      // Store user token if available
+      //  if (data.authed_user && data.authed_user.access_token) {
+      //   await this.slackService.storeUserToken(
+      //     tenantId,
+      //     data.authed_user,
+      //     data.access_token
+      //   );
+      // }
+
+      // // Update tenant with Slack configuration
+      // await this.slackService.updateTenantSlackConfig(tenantId, {
+      //   botToken: data.access_token,
+      //   teamId: data.team.id,
+      //   teamName: data.team.name,
+      //   installedBy: data.authed_user?.id,
+      //   signingSecret: this.configService.get<string>("slack.signingSecret"),
+      // });
+
+      // return res.redirect(
+      //   new URL(`/${tenantId}/integrations?success=true`, baseUrl).toString()
+      // );
+    } catch (error) {
+      throw new InternalServerErrorException("Failed to handle Slack callback");
+    }
   }
 
   async getConversations(tenantId: string, limit = 50) {
@@ -103,23 +222,22 @@ export class SlackService {
     });
   }
 
-  
   async verifySlackSignature(
     body: string,
     signature: string,
     timestamp: string
   ): Promise<boolean> {
-    const signingSecret = this.configService.get<string>('slack.signingSecret');
+    const signingSecret = this.configService.get<string>("slack.signingSecret");
     if (!signingSecret) {
-      this.logger.warn('Slack signing secret not configured');
+      this.logger.warn("Slack signing secret not configured");
       return false;
     }
 
-    const hmac = crypto.createHmac('sha256', signingSecret);
-    const [version, hash] = signature.split('=');
+    const hmac = crypto.createHmac("sha256", signingSecret);
+    const [version, hash] = signature.split("=");
 
     hmac.update(`${timestamp}:${body}`);
-    const expectedHash = hmac.digest('hex');
+    const expectedHash = hmac.digest("hex");
 
     return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(expectedHash));
   }
@@ -142,7 +260,7 @@ export class SlackService {
     try {
       const client = await this.createSlackClient(tenantId);
       if (!client) {
-        throw new Error('Failed to create Slack client');
+        throw new Error("Failed to create Slack client");
       }
 
       const userId = authedUser.id;
@@ -165,34 +283,39 @@ export class SlackService {
           isOwner: userProfile.is_owner,
           timezone: userProfile.tz,
           userToken: accessToken,
-          scopes: authedUser.scope ? authedUser.scope.split(',') : [],
-          lastSeenAt: new Date()
+          scopes: authedUser.scope ? authedUser.scope.split(",") : [],
+          lastSeenAt: new Date(),
         });
 
         await this.slackUserRepository.save(slackUser);
 
-        this.logger.log(`Stored user token for: ${userProfile.real_name || userProfile.name}`);
+        this.logger.log(
+          `Stored user token for: ${userProfile.real_name || userProfile.name}`
+        );
       }
     } catch (error) {
-      this.logger.error('Failed to store user token:', error);
+      this.logger.error("Failed to store user token:", error);
       throw error;
     }
   }
 
-  async updateTenantSlackConfig(tenantId: string, config: {
-    botToken: string;
-    teamId: string;
-    teamName: string;
-    installedBy?: string;
-    signingSecret?: string;
-  }) {
+  async updateTenantSlackConfig(
+    tenantId: string,
+    config: {
+      botToken: string;
+      teamId: string;
+      teamName: string;
+      installedBy?: string;
+      signingSecret?: string;
+    }
+  ) {
     try {
       const tenant = await this.tenantRepository.findOne({
         where: { id: tenantId },
       });
 
       if (!tenant) {
-        throw new Error('Tenant not found');
+        throw new Error("Tenant not found");
       }
 
       tenant.slackConfig = {
@@ -208,26 +331,29 @@ export class SlackService {
       await this.tenantRepository.save(tenant);
       return { success: true };
     } catch (error) {
-      this.logger.error('Failed to update tenant Slack config:', error);
+      this.logger.error("Failed to update tenant Slack config:", error);
       return { success: false };
     }
   }
 
-  async fetchUserInfo(client: SlackApiClient, userId: string): Promise<SlackUserProfile | null> {
+  async fetchUserInfo(
+    client: SlackApiClient,
+    userId: string
+  ): Promise<SlackUserProfile | null> {
     try {
-      const response = await fetch('https://slack.com/api/users.info', {
-        method: 'POST',
+      const response = await fetch("https://slack.com/api/users.info", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${client.botToken}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Bearer ${client.botToken}`,
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({ user: userId })
+        body: new URLSearchParams({ user: userId }),
       });
 
       const data = await response.json();
 
       if (!data.ok) {
-        this.logger.error('Slack API error:', data.error);
+        this.logger.error("Slack API error:", data.error);
         return null;
       }
 
@@ -243,10 +369,10 @@ export class SlackService {
         is_bot: user.is_bot || false,
         is_admin: user.is_admin || false,
         is_owner: user.is_owner || false,
-        tz: user.tz
+        tz: user.tz,
       };
     } catch (error) {
-      this.logger.error('Error fetching user info:', error);
+      this.logger.error("Error fetching user info:", error);
       return null;
     }
   }
@@ -254,32 +380,32 @@ export class SlackService {
   async getChannels(tenantId: string): Promise<any[]> {
     const client = await this.createSlackClient(tenantId);
     if (!client) {
-      throw new Error('Slack not connected');
+      throw new Error("Slack not connected");
     }
 
     try {
-      const response = await fetch('https://slack.com/api/conversations.list', {
-        method: 'POST',
+      const response = await fetch("https://slack.com/api/conversations.list", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${client.botToken}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Bearer ${client.botToken}`,
+          "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          types: 'public_channel,private_channel',
-          exclude_archived: 'true'
-        })
+          types: "public_channel,private_channel",
+          exclude_archived: "true",
+        }),
       });
 
       const data = await response.json();
 
       if (!data.ok) {
-        this.logger.error('Slack API error:', data.error);
+        this.logger.error("Slack API error:", data.error);
         return [];
       }
 
       return data.channels || [];
     } catch (error) {
-      this.logger.error('Error fetching channel list:', error);
+      this.logger.error("Error fetching channel list:", error);
       return [];
     }
   }
@@ -287,30 +413,30 @@ export class SlackService {
   async joinChannel(tenantId: string, channelId: string): Promise<boolean> {
     const client = await this.createSlackClient(tenantId);
     if (!client) {
-      throw new Error('Slack not connected');
+      throw new Error("Slack not connected");
     }
 
     try {
-      const response = await fetch('https://slack.com/api/conversations.join', {
-        method: 'POST',
+      const response = await fetch("https://slack.com/api/conversations.join", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${client.botToken}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Bearer ${client.botToken}`,
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({ channel: channelId })
+        body: new URLSearchParams({ channel: channelId }),
       });
 
       const data = await response.json();
 
       if (!data.ok) {
-        this.logger.error('Error joining channel:', data.error);
+        this.logger.error("Error joining channel:", data.error);
         return false;
       }
 
       this.logger.log(`Successfully joined channel: ${channelId}`);
       return true;
     } catch (error) {
-      this.logger.error('Error joining channel:', error);
+      this.logger.error("Error joining channel:", error);
       return false;
     }
   }
@@ -323,32 +449,32 @@ export class SlackService {
   ) {
     const client = await this.createSlackClient(tenantId);
     if (!client) {
-      throw new Error('Slack not connected');
+      throw new Error("Slack not connected");
     }
 
     try {
       const body = new URLSearchParams({
         channel: channelId,
-        text: message
+        text: message,
       });
 
       if (threadTs) {
-        body.append('thread_ts', threadTs);
+        body.append("thread_ts", threadTs);
       }
 
-      const response = await fetch('https://slack.com/api/chat.postMessage', {
-        method: 'POST',
+      const response = await fetch("https://slack.com/api/chat.postMessage", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${client.botToken}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Bearer ${client.botToken}`,
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body
+        body,
       });
 
       const data = await response.json();
 
       if (!data.ok) {
-        this.logger.error('Error posting message:', data.error);
+        this.logger.error("Error posting message:", data.error);
         throw new Error(data.error);
       }
 
@@ -358,7 +484,7 @@ export class SlackService {
         threadTs,
       };
     } catch (error) {
-      this.logger.error('Error posting message:', error);
+      this.logger.error("Error posting message:", error);
       throw error;
     }
   }
@@ -370,15 +496,15 @@ export class SlackService {
       // Revoke bot token if available
       if (client?.botToken) {
         try {
-          await fetch('https://slack.com/api/auth.revoke', {
-            method: 'POST',
+          await fetch("https://slack.com/api/auth.revoke", {
+            method: "POST",
             headers: {
-              'Authorization': `Bearer ${client.botToken}`,
-              'Content-Type': 'application/x-www-form-urlencoded',
-            }
+              Authorization: `Bearer ${client.botToken}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
           });
         } catch (error) {
-          this.logger.warn('Failed to revoke bot token:', error);
+          this.logger.warn("Failed to revoke bot token:", error);
         }
       }
 
@@ -398,9 +524,11 @@ export class SlackService {
         await this.tenantRepository.save(tenant);
       }
 
-      this.logger.log(`Successfully disconnected Slack for tenant: ${tenantId}`);
+      this.logger.log(
+        `Successfully disconnected Slack for tenant: ${tenantId}`
+      );
     } catch (error) {
-      this.logger.error('Error disconnecting Slack:', error);
+      this.logger.error("Error disconnecting Slack:", error);
       throw error;
     }
   }
@@ -416,20 +544,26 @@ export class SlackService {
 
       const users = await this.slackUserRepository.find({
         where: whereCondition,
-        select: ['slackUserId', 'displayName', 'userToken', 'isActive', 'lastSeenAt']
+        select: [
+          "slackUserId",
+          "displayName",
+          "userToken",
+          "isActive",
+          "lastSeenAt",
+        ],
       });
 
       return {
-        users: users.map(user => ({
+        users: users.map((user) => ({
           slackUserId: user.slackUserId,
           displayName: user.displayName,
           hasUserToken: !!user.userToken,
           isActive: user.isActive,
-          lastSeenAt: user.lastSeenAt
-        }))
+          lastSeenAt: user.lastSeenAt,
+        })),
       };
     } catch (error) {
-      this.logger.error('Error checking user auth status:', error);
+      this.logger.error("Error checking user auth status:", error);
       throw error;
     }
   }
@@ -440,15 +574,15 @@ export class SlackService {
     // This would handle different event types
     // For now, just log the event
     switch (event.type) {
-      case 'message':
+      case "message":
         await this.handleMessageEvent(tenantId, event);
         break;
-      case 'reaction_added':
-      case 'reaction_removed':
+      case "reaction_added":
+      case "reaction_removed":
         await this.handleReactionEvent(tenantId, event);
         break;
-      case 'member_joined_channel':
-      case 'member_left_channel':
+      case "member_joined_channel":
+      case "member_left_channel":
         await this.handleMemberEvent(tenantId, event);
         break;
       default:
@@ -458,7 +592,7 @@ export class SlackService {
 
   private async handleMessageEvent(tenantId: string, event: any) {
     // Handle message events
-    this.logger.log(`Message event: ${event.subtype || 'message'}`);
+    this.logger.log(`Message event: ${event.subtype || "message"}`);
   }
 
   private async handleReactionEvent(tenantId: string, event: any) {

@@ -19,13 +19,8 @@ import { SlackService } from "./slack.service";
 import { Public } from "../auth/decorators/public.decorator";
 import { Permissions } from "../common/decorators/permissions.decorator";
 import { OrganizationPermission } from "../database/types";
-import { AuthGuard } from "../common/guards/auth.guard";
-import { TenantGuard } from "../common/guards/tenant.guard";
-import { PermissionsGuard } from "../common/guards/permissions.guard";
-import { UseGuards } from "@nestjs/common";
 
-@Controller("api/:tenantId/slack")
-@UseGuards(AuthGuard, TenantGuard, PermissionsGuard)
+@Controller("api/slack")
 export class SlackController {
   constructor(
     private readonly slackService: SlackService,
@@ -57,61 +52,20 @@ export class SlackController {
     }
   }
 
-  @Get("install")
-  @Permissions(OrganizationPermission.MANAGE_SLACK)
+  @Get("install/:tenantId")
+  @Public()
   async installSlack(
     @Param("tenantId") tenantId: string,
     @Res() res: Response
   ) {
     try {
-      const scopes = [
-        // Core reading permissions
-        "channels:read",
-        "groups:read",
-        "im:read",
-        "mpim:read",
-        "reactions:read",
-        "team:read",
-
-        // Message history permissions
-        "channels:history",
-        "groups:history",
-        "im:history",
-        "mpim:history",
-
-        // Writing permissions
-        "chat:write",
-        "reactions:write",
-
-        // Channel management
-        "channels:join",
-        "groups:write",
-
-        // User information
-        "users:read",
-        "users:read.email",
-
-        // Enhanced user interaction
-        "chat:write.public",
-        "chat:write.customize",
-      ];
-
-      const userScopes = [
-        "chat:write", // User scope for posting as the user
-      ];
-
-      const baseUrl =
-        this.configService.get<string>("cors.origin")[0] ||
-        "http://localhost:3000";
-      const redirectUrl = new URL(`/api/${tenantId}/slack/callback`, baseUrl);
-
-      const url = `https://slack.com/oauth/v2/authorize?client_id=${this.configService.get<string>(
-        "slack.clientId"
-      )}&scope=${scopes.join(",")}&user_scope=${userScopes.join(",")}&redirect_uri=${encodeURIComponent(redirectUrl.toString())}&state=${encodeURIComponent(tenantId)}`;
-
-      return res.redirect(url);
+      console.log("installSlack", tenantId);
+      const url = await this.slackService.installSlack(tenantId);
+      return res.status(HttpStatus.OK).json({ url });
     } catch (error) {
-      throw new InternalServerErrorException("Failed to initiate Slack OAuth");
+      return res
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json({ error: error.message });
     }
   }
 
@@ -123,80 +77,17 @@ export class SlackController {
     @Query("error") error: string,
     @Res() res: Response
   ) {
-    if (!tenantId) {
-      throw new BadRequestException("Missing state parameter");
-    }
-
-    if (error) {
-      const baseUrl =
-        this.configService.get<string>("cors.origin")[0] ||
-        "http://localhost:3000";
-      return res.redirect(
-        new URL(`/${tenantId}/integrations?error=${error}`, baseUrl).toString()
-      );
-    }
-
-    if (!code) {
-      throw new BadRequestException("Missing authorization code");
-    }
-
     try {
-      const baseUrl =
-        this.configService.get<string>("cors.origin")[0] ||
-        "http://localhost:3000";
-      const redirectUri = `${baseUrl}/api/${tenantId}/slack/callback`;
-
-      const result = await fetch("https://slack.com/api/oauth.v2.access", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          client_id: this.configService.get<string>("slack.clientId"),
-          client_secret: this.configService.get<string>("slack.clientSecret"),
-          code: code,
-          redirect_uri: redirectUri,
-        }),
-      });
-
-      const data = await result.json();
-
-      if (!data.ok) {
-        throw new Error(`Slack OAuth error: ${data.error}`);
-      }
-
-      // Store user token if available
-      if (data.authed_user && data.authed_user.access_token) {
-        await this.slackService.storeUserToken(
-          tenantId,
-          data.authed_user,
-          data.access_token
-        );
-      }
-
-      // Update tenant with Slack configuration
-      await this.slackService.updateTenantSlackConfig(tenantId, {
-        botToken: data.access_token,
-        teamId: data.team.id,
-        teamName: data.team.name,
-        installedBy: data.authed_user?.id,
-        signingSecret: this.configService.get<string>("slack.signingSecret"),
-      });
-
-      return res.redirect(
-        new URL(`/${tenantId}/integrations?success=true`, baseUrl).toString()
+      const result = await this.slackService.handleSlackCallback(
+        code,
+        tenantId,
+        error
       );
+      return res.status(HttpStatus.OK).json(result);
     } catch (error) {
-      console.error("Error processing Slack OAuth callback:", error);
-      const baseUrl =
-        this.configService.get<string>("cors.origin")[0] ||
-        "http://localhost:3000";
-      return res.redirect(
-        new URL(
-          `/${tenantId}/integrations?error=oauth_failed`,
-          baseUrl
-        ).toString()
-      );
+      return res
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json({ error: error.message });
     }
   }
 
@@ -207,9 +98,7 @@ export class SlackController {
     @Query("state") state: string,
     @Res() res: Response
   ) {
-    // This would handle user-specific OAuth flow
-    // For now, redirect to the main callback
-    return this.handleSlackCallback(code, state, null, res);
+    return "User callback";
   }
 
   @Post("events")
